@@ -27,6 +27,8 @@ contract Strategy is BaseStrategy {
     using Address for address;
     using SafeMath for uint256;
 
+    event CurrentState(uint256 _amount);
+
     // Comptroller address for compound.finance
     ComptrollerI public constant compound = ComptrollerI(0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B);
 
@@ -72,6 +74,8 @@ contract Strategy is BaseStrategy {
         uint256 amount_of_cDai = cDai.balanceOf(address(this));
         uint256 amount_of_Dai = want.balanceOf(address(this));
         uint256 depositedDai_in_cDai = amount_of_cDai.mul(exchangeRate).div(uint256(10**18));
+
+        emit CurrentState(depositedDai_in_cDai);
         if(_debtOutstanding < amount_of_Dai){
             //return debt
             _debtPayment = _debtOutstanding;
