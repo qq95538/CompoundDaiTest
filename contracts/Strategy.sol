@@ -55,7 +55,9 @@ contract Strategy is BaseStrategy {
         // TODO: Build a more accurate estimate using the value of all positions in terms of `want`
         uint256 exchangeRate = cDai.exchangeRateStored();
         uint256 amount_of_cDai = cDai.balanceOf(address(this));
-        return(want.balanceOf(address(this)).add(amount_of_cDai.mul(exchangeRate).div(uint256(10**18))));
+        uint256 amount_of_Dai = want.balanceOf(address(this));
+        uint256 depositedDai_in_cDai = amount_of_cDai.mul(exchangeRate.div(10**(18+18-8)));
+        return(amount_of_Dai.add(depositedDai_in_cDai));
     }
 
     function prepareReturn(uint256 _debtOutstanding)
@@ -73,7 +75,7 @@ contract Strategy is BaseStrategy {
         uint256 exchangeRate = cDai.exchangeRateStored();
         uint256 amount_of_cDai = cDai.balanceOf(address(this));
         uint256 amount_of_Dai = want.balanceOf(address(this));
-        uint256 depositedDai_in_cDai = amount_of_cDai.mul(exchangeRate).div(uint256(10**18));
+        uint256 depositedDai_in_cDai = amount_of_cDai.mul(exchangeRate.div(10**(18+18-8)));
 
         emit CurrentState(depositedDai_in_cDai);
         if(_debtOutstanding < amount_of_Dai){
@@ -106,7 +108,7 @@ contract Strategy is BaseStrategy {
         uint256 exchangeRate = cDai.exchangeRateStored();
         uint256 amount_of_cDai = cDai.balanceOf(address(this));
         uint256 amount_of_Dai = want.balanceOf(address(this));
-        uint256 depositedDai_in_cDai = amount_of_cDai.mul(exchangeRate).div(uint256(10**18));
+        uint256 depositedDai_in_cDai = amount_of_cDai.mul(exchangeRate.div(10**(18+18-8)));
         //if over collateral mint;    
         cDai.mint(amount_of_Dai);
         //else redeem some;
@@ -128,25 +130,31 @@ contract Strategy is BaseStrategy {
         uint256 exchangeRate = cDai.exchangeRateStored();
         uint256 amount_of_cDai = cDai.balanceOf(address(this));
         uint256 amount_of_Dai = want.balanceOf(address(this));
-        uint256 depositedDai_in_cDai = amount_of_cDai.mul(exchangeRate).div(uint256(10**18));
+        uint256 depositedDai_in_cDai = amount_of_cDai.mul(exchangeRate.div(10**(18+18-8)));
         
         uint256 totalAssets = amount_of_Dai.add(depositedDai_in_cDai);
-        if (_amountNeeded > totalAssets) {
-            cDai.redeem(amount_of_cDai);
-            _liquidatedAmount = totalAssets;
-            _loss = _amountNeeded.sub(totalAssets);
-        } else {
-            cDai.redeem(_amountNeeded.div(exchangeRate.div(uint256(10**(18+18-8)))));
-            _liquidatedAmount = _amountNeeded;
+        if (_amountNeeded > amount_of_Dai) {
+            uint256 need_to_liquidate = (_amountNeeded.sub(amount_of_Dai));
+            if(depositedDai_in_cDai > need_to_liquidate){
+                cDai.redeem(need_to_liquidate.div(exchangeRate.div(10**(18+18-8))));
+                _liquidatedAmount = _amountNeeded;
+            }
+            else{
+                cDai.redeem(amount_of_cDai);
+                _liquidatedAmount = depositedDai_in_cDai;
+                _loss = need_to_liquidate - depositedDai_in_cDai;
+            }
+            
+        }
+        else{
+            _liquidatedAmount = 0;
         }
     }
 
     function liquidateAllPositions() internal override returns (uint256) {
         // TODO: Liquidate all positions and return the amount freed.
         cDai.redeem(cDai.balanceOf(address(this)));
-        uint256 exchangeRate = cDai.exchangeRateStored();
-        uint256 amount_of_cDai = cDai.balanceOf(address(this));
-        return(want.balanceOf(address(this)).add(amount_of_cDai.mul(exchangeRate).div(uint256(10**18))));
+        return(want.balanceOf(address(this)));
     }
 
     // NOTE: Can override `tendTrigger` and `harvestTrigger` if necessary
