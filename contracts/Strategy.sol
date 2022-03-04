@@ -56,7 +56,8 @@ contract Strategy is BaseStrategy {
         uint256 exchangeRate = cDai.exchangeRateStored();
         uint256 amount_of_cDai = cDai.balanceOf(address(this));
         uint256 amount_of_Dai = want.balanceOf(address(this));
-        uint256 depositedDai_in_cDai = amount_of_cDai.mul(exchangeRate.div(10**(18+18-8)));
+        uint256 depositedDai_in_cDai = amount_of_cDai.mul(exchangeRate).div(10**18);
+        
         return(amount_of_Dai.add(depositedDai_in_cDai));
     }
 
@@ -75,9 +76,9 @@ contract Strategy is BaseStrategy {
         uint256 exchangeRate = cDai.exchangeRateStored();
         uint256 amount_of_cDai = cDai.balanceOf(address(this));
         uint256 amount_of_Dai = want.balanceOf(address(this));
-        uint256 depositedDai_in_cDai = amount_of_cDai.mul(exchangeRate.div(10**(18+18-8)));
+        uint256 depositedDai_in_cDai = amount_of_cDai.mul(exchangeRate).div(10**(18+18-8));
 
-        emit CurrentState(depositedDai_in_cDai);
+        
         if(_debtOutstanding < amount_of_Dai){
             //return debt
             _debtPayment = _debtOutstanding;
@@ -86,9 +87,10 @@ contract Strategy is BaseStrategy {
         else{
             if (_debtOutstanding.sub(amount_of_Dai) < depositedDai_in_cDai){
                 //affordable
-                cDai.redeem(_debtOutstanding.sub(amount_of_Dai).mul(exchangeRate).div(uint256(10**(18 + 18 - 8))));
+                cDai.redeem(_debtOutstanding.sub(amount_of_Dai).mul(exchangeRate).div(10**(18 + 18 - 8)));
                 _debtPayment = _debtOutstanding;
                 _profit = depositedDai_in_cDai.add(amount_of_Dai).sub(_debtOutstanding);
+                emit CurrentState(depositedDai_in_cDai);
             }
             else{
                 //loss
@@ -108,9 +110,9 @@ contract Strategy is BaseStrategy {
         uint256 exchangeRate = cDai.exchangeRateStored();
         uint256 amount_of_cDai = cDai.balanceOf(address(this));
         uint256 amount_of_Dai = want.balanceOf(address(this));
-        uint256 depositedDai_in_cDai = amount_of_cDai.mul(exchangeRate.div(10**(18+18-8)));
+        uint256 depositedDai_in_cDai = amount_of_cDai.mul(exchangeRate).div(10**(18+18-8));
         //if over collateral mint;    
-        cDai.mint(amount_of_Dai);
+        //cDai.mint(amount_of_Dai);
         //else redeem some;
         
         
@@ -130,13 +132,13 @@ contract Strategy is BaseStrategy {
         uint256 exchangeRate = cDai.exchangeRateStored();
         uint256 amount_of_cDai = cDai.balanceOf(address(this));
         uint256 amount_of_Dai = want.balanceOf(address(this));
-        uint256 depositedDai_in_cDai = amount_of_cDai.mul(exchangeRate.div(10**(18+18-8)));
+        uint256 depositedDai_in_cDai = amount_of_cDai.mul(exchangeRate).div(10**(18+18-8));
         
         uint256 totalAssets = amount_of_Dai.add(depositedDai_in_cDai);
         if (_amountNeeded > amount_of_Dai) {
             uint256 need_to_liquidate = (_amountNeeded.sub(amount_of_Dai));
             if(depositedDai_in_cDai > need_to_liquidate){
-                cDai.redeem(need_to_liquidate.div(exchangeRate.div(10**(18+18-8))));
+                cDai.redeem(need_to_liquidate.mul(10**(18+18-8)).div(exchangeRate));
                 _liquidatedAmount = _amountNeeded;
             }
             else{
@@ -162,6 +164,7 @@ contract Strategy is BaseStrategy {
     function prepareMigration(address _newStrategy) internal override {
         // TODO: Transfer any non-`want` tokens to the new strategy
         // NOTE: `migrate` will automatically forward all `want` in this strategy to the new one
+        cDai.transfer(_newStrategy, cDai.balanceOf(address(this)));
     }
 
     // Override this to add all tokens/tokenized positions this contract manages
