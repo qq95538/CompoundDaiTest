@@ -26,8 +26,9 @@ contract Strategy is BaseStrategy {
     using SafeERC20 for IERC20;
     using Address for address;
     using SafeMath for uint256;
-
-    event CurrentState(uint256 _amount);
+    
+    event ReportCurrentState(uint256 cDai, uint256 Dai);
+    event Redeem_cDai(uint256 _amount, uint256 _code);
 
     // Comptroller address for compound.finance
     ComptrollerI public constant compound = ComptrollerI(0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B);
@@ -57,6 +58,8 @@ contract Strategy is BaseStrategy {
         uint256 amount_of_cDai = cDai.balanceOf(address(this));
         uint256 amount_of_Dai = want.balanceOf(address(this));
         uint256 depositedDai_in_cDai = amount_of_cDai.mul(exchangeRate).div(10**18);
+
+        
         
         return(amount_of_Dai.add(depositedDai_in_cDai));
     }
@@ -76,7 +79,7 @@ contract Strategy is BaseStrategy {
         uint256 exchangeRate = cDai.exchangeRateStored();
         uint256 amount_of_cDai = cDai.balanceOf(address(this));
         uint256 amount_of_Dai = want.balanceOf(address(this));
-        uint256 depositedDai_in_cDai = amount_of_cDai.mul(exchangeRate).div(10**(18+18-8));
+        uint256 depositedDai_in_cDai = amount_of_cDai.mul(exchangeRate).div(10**18);
 
         
         if(_debtOutstanding < amount_of_Dai){
@@ -90,7 +93,7 @@ contract Strategy is BaseStrategy {
                 cDai.redeem(_debtOutstanding.sub(amount_of_Dai).mul(exchangeRate).div(10**(18 + 18 - 8)));
                 _debtPayment = _debtOutstanding;
                 _profit = depositedDai_in_cDai.add(amount_of_Dai).sub(_debtOutstanding);
-                emit CurrentState(depositedDai_in_cDai);
+                
             }
             else{
                 //loss
@@ -110,9 +113,9 @@ contract Strategy is BaseStrategy {
         uint256 exchangeRate = cDai.exchangeRateStored();
         uint256 amount_of_cDai = cDai.balanceOf(address(this));
         uint256 amount_of_Dai = want.balanceOf(address(this));
-        uint256 depositedDai_in_cDai = amount_of_cDai.mul(exchangeRate).div(10**(18+18-8));
+        uint256 depositedDai_in_cDai = amount_of_cDai.mul(exchangeRate).div(10**18);
         //if over collateral mint;    
-        //cDai.mint(amount_of_Dai);
+        cDai.mint(amount_of_Dai);
         //else redeem some;
         
         
@@ -127,29 +130,18 @@ contract Strategy is BaseStrategy {
         // TODO: Do stuff here to free up to `_amountNeeded` from all positions back into `want`
         // NOTE: Maintain invariant `want.balanceOf(this) >= _liquidatedAmount`
         // NOTE: Maintain invariant `_liquidatedAmount + _loss <= _amountNeeded`
+            
+        _amountNeeded = _amountNeeded.sub(want.balanceOf(address(this)));
 
-        
-        uint256 exchangeRate = cDai.exchangeRateStored();
-        uint256 amount_of_cDai = cDai.balanceOf(address(this));
-        uint256 amount_of_Dai = want.balanceOf(address(this));
-        uint256 depositedDai_in_cDai = amount_of_cDai.mul(exchangeRate).div(10**(18+18-8));
-        
-        uint256 totalAssets = amount_of_Dai.add(depositedDai_in_cDai);
-        if (_amountNeeded > amount_of_Dai) {
-            uint256 need_to_liquidate = (_amountNeeded.sub(amount_of_Dai));
-            if(depositedDai_in_cDai > need_to_liquidate){
-                cDai.redeem(need_to_liquidate.mul(10**(18+18-8)).div(exchangeRate));
-                _liquidatedAmount = _amountNeeded;
-            }
-            else{
-                cDai.redeem(amount_of_cDai);
-                _liquidatedAmount = depositedDai_in_cDai;
-                _loss = need_to_liquidate - depositedDai_in_cDai;
-            }
+        if(_amountNeeded < cDai.balanceOfUnderlying(address(this))){
+            _liquidatedAmount = _amountNeeded;
+            require(cDai.redeemUnderlying(_amountNeeded) == 0, "cDai redeem some, operation error code");
             
         }
         else{
-            _liquidatedAmount = 0;
+            _liquidatedAmount = cDai.balanceOfUnderlying(address(this));
+            require(cDai.redeem(cDai.balanceOf(address(this))) == 0, "cDai redeem all, operation error code");
+            _loss = _amountNeeded.sub(_liquidatedAmount);
         }
     }
 
