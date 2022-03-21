@@ -72,9 +72,9 @@ contract Strategy is BaseStrategy {
         // NOTE: Should try to free up at least `_debtOutstanding` of underlying position
         
         StrategyParams memory params = vault.strategies(address(this));
+        emit know_debt(_debtOutstanding, params.totalDebt);
 
         if(_debtOutstanding > 0){
-            emit know_debt(_debtOutstanding, params.totalDebt);
             (_debtPayment, _loss) = liquidatePosition(_debtOutstanding);
             uint256 totalAssets = estimatedTotalAssets();
             if(_loss == 0){
@@ -85,17 +85,31 @@ contract Strategy is BaseStrategy {
                     _loss = params.totalDebt.sub(totalAssets);
                 }             
             }    
+        }
+        else{
+            uint256 totalAssets = estimatedTotalAssets();
+            if(totalAssets > params.totalDebt){
+                _profit = totalAssets.sub(params.totalDebt);
+            }
+            else{
+                _loss = params.totalDebt.sub(totalAssets);
+            }
+            
         }    
     }
 
     function adjustPosition(uint256 _debtOutstanding) internal override {
         // TODO: Do something to invest excess `want` tokens (from the Vault) into your positions
         // NOTE: Try to adjust positions so that `_debtOutstanding` can be freed up on *next* harvest (not immediately)
-        StrategyParams memory params = vault.strategies(address(this));
+        //if over collateral mint;
+        if(want.balanceOf(address(this)) > _debtOutstanding){
 
-        emit know_debt(_debtOutstanding, params.debtRatio);
-        //if over collateral mint;    
-        cDai.mint(want.balanceOf(address(this)));
+            cDai.mint(want.balanceOf(address(this)).sub(_debtOutstanding));
+        }
+        else{
+            //return debts.
+        }
+        
         //else redeem some;
         
         
